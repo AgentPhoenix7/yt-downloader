@@ -8,48 +8,47 @@ UPDATE_URL="https://raw.githubusercontent.com/AgentPhoenix7/yt-downloader/main/$
 # === Colors ===
 BOLD='\033[1m'
 RESET='\033[0m'
-@@ -8,119 +13,223 @@ CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-
-# === Defaults ===
-USE_CLIPBOARD=1
-TYPE=""
-FORMAT=""
-FMT=""
-URL=""
-SAVE_DIR=""
-QUALITY=""
 
 # === Help screen ===
 print_help() {
   echo -e "${CYAN}${BOLD}YouTube Downloader - CLI Options${RESET}"
-  echo -e "${YELLOW}Usage:${RESET} ./youtube_downloader.sh [options]"
+  echo -e "${YELLOW}Usage:${RESET} ${GREEN}./youtube_downloader.sh [options]${RESET}"
   echo -e ""
   echo -e "${YELLOW}Options:${RESET}"
-  echo -e "  --url URL            📺  Provide a YouTube video or playlist URL"
-  echo -e "  --audio              🎵  Download audio only (e.g., mp3)"
-  echo -e "  --video              🎞️  Download full video"
-  echo -e "  --format FORMAT      🔊  Audio format (e.g., mp3, m4a). Default: mp3"
-  echo -e "  --quality QUALITY    📼  Video quality: best, medium, or worst"
-  echo -e "  --dir PATH           📁  Download directory (default: \$HOME)"
-  echo -e "  --no-clipboard       ❌  Disable clipboard auto-paste"
-  echo -e "  --check-update       🔍  Check for newer version"
-  echo -e "  --update             ⬆️   Auto-update script from GitHub"
-  echo -e "  -h, --help           📖  Show this help message"
+  echo -e "  ${CYAN}--url URL${RESET}            ${BLUE}📺  Provide a YouTube video or playlist URL${RESET}"
+  echo -e "  ${CYAN}--audio${RESET}              ${BLUE}🎵  Download audio only (e.g., mp3)${RESET}"
+  echo -e "  ${CYAN}--video${RESET}              ${BLUE}🎞️  Download full video${RESET}"
+  echo -e "  ${CYAN}--format FORMAT${RESET}      ${BLUE}🔊  Audio format (e.g., mp3, m4a). Default: mp3${RESET}"
+  echo -e "  ${CYAN}--quality QUALITY${RESET}    ${BLUE}📼  Video quality: best, medium, or worst${RESET}"
+  echo -e "  ${CYAN}--dir PATH${RESET}           ${BLUE}📁  Download directory (default: $HOME)${RESET}"
+  echo -e "  ${CYAN}--no-clipboard${RESET}       ${BLUE}❌  Disable clipboard auto-paste${RESET}"
+  echo -e "  ${CYAN}--check-update${RESET}       ${BLUE}🔍  Check for newer version${RESET}"
+  echo -e "  ${CYAN}--update${RESET}             ${BLUE}⬆️   Auto-update script from GitHub${RESET}"
+  echo -e "  ${CYAN}-h, --help${RESET}           ${BLUE}📖  Show this help message${RESET}"
   exit 0
 }
 
 # === Parse CLI args ===
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --url) URL="$2"; shift 2 ;;
-    --audio) TYPE="Audio only"; shift ;;
-    --video) TYPE="Audio + Video"; shift ;;
-    --format) FORMAT="$2"; shift 2 ;;
-    --quality) QUALITY="$2"; shift 2 ;;
-    --dir) SAVE_DIR="$2"; shift 2 ;;
-    --no-clipboard) USE_CLIPBOARD=0; shift ;;
+    --url)
+      URL="$2"; shift 2 ;;
+    --audio)
+      TYPE="Audio only"; shift ;;
+    --video)
+      TYPE="Audio + Video"; shift ;;
+    --format)
+      FORMAT="$2"; shift 2 ;;
+    --quality)
+      QUALITY="$2"; shift 2 ;;
+    --dir)
+      SAVE_DIR="$2"; shift 2 ;;
+    --no-clipboard)
+      USE_CLIPBOARD=0; shift ;;
     --check-update)
       echo -e "${CYAN}🔍 Checking for updates...${RESET}"
       REMOTE_VERSION=$(curl -s "$UPDATE_URL" | grep -E '^VERSION=' | cut -d'"' -f2)
@@ -63,8 +62,7 @@ while [[ $# -gt 0 ]]; do
       else
         echo -e "${GREEN}✅ You're using the latest version: $VERSION${RESET}"
       fi
-      exit 0
-      ;;
+      exit 0 ;;
     --update)
       echo -e "${CYAN}⬇️  Downloading latest version...${RESET}"
       curl -s -o "$0.tmp" "$UPDATE_URL" || {
@@ -74,166 +72,129 @@ while [[ $# -gt 0 ]]; do
       chmod +x "$0.tmp"
       mv "$0.tmp" "$0"
       echo -e "${GREEN}✅ Script updated to latest version.${RESET}"
-      exit 0
-      ;;
-    -h|--help) print_help ;;
-    *) echo -e "${RED}⚠️  Unknown option: $1${RESET}"; print_help ;;
+      exit 0 ;;
+    -h|--help)
+      print_help ;;
+    *)
+      echo -e "${RED}⚠️  Unknown option: '$1'${RESET}"
+      echo -e "   Use ${CYAN}--help${RESET} to see available options."
+      exit 1 ;;
   esac
 done
 
-# === Temp setup ===
+# === Temp & Archive Setup ===
 COMMANDS_FILE=$(mktemp)
 LOG_FILE="/tmp/yt-dlp-error-$(date +%s).log"
 trap 'rm -f "$COMMANDS_FILE"; echo -e "${RED}\nInterrupted. Temp files cleaned.${RESET}"; exit 1' INT TERM
 
 clear
-echo -e "${CYAN}${BOLD}YouTube Downloader - Terminal Edition (v$VERSION)${RESET}"
+echo -e "${CYAN}${BOLD}YouTube Downloader - Terminal Edition${RESET}"
 
-# === Clipboard support ===
-if [[ -z "$URL" && "$USE_CLIPBOARD" == 1 ]]; then
-  if command -v wl-paste &>/dev/null; then
-    CLIP_URL=$(wl-paste --no-newline 2>/dev/null)
-  elif command -v xclip &>/dev/null; then
-    CLIP_URL=$(xclip -o -selection clipboard 2>/dev/null)
-  elif command -v xsel &>/dev/null; then
-    CLIP_URL=$(xsel --clipboard 2>/dev/null)
-  fi
-
-  if [[ "$CLIP_URL" =~ ^https?://(www\.)?(youtube\.com|youtu\.be)/ ]]; then
-    echo -e "${YELLOW}📋 Clipboard contains a YouTube link:${RESET}"
-    echo -e "→ $CLIP_URL"
-    echo -en "Use this URL? (Y/n): "
-    read -r USE_CLIP
-    case "$USE_CLIP" in
-      [nN]*) CLIP_URL="";;
-    esac
-    [[ -n "$CLIP_URL" ]] && URL="$CLIP_URL"
-  fi
-fi
-
-# === URL prompt fallback ===
-if [[ -z "$URL" ]]; then
-  echo -e "${YELLOW}Paste the full YouTube URL (video or playlist):${RESET}"
-  echo -en "Example: https://www.youtube.com/watch?v=abc123\n> "
-  read -r URL
-fi
-
-
-
-
-
-[[ -z "$URL" ]] && echo -e "${RED}No URL entered. Exiting.${RESET}" && exit 1
+# === Step 1: URL Input ===
+echo -e "${YELLOW}${BOLD}📥 Paste the full YouTube URL (single video or playlist).${RESET}"
+echo -en "${YELLOW}Example: https://www.youtube.com/watch?v=abc123${RESET}\n> "
+read -r URL
+[[ -z "$URL" ]] && echo -e "${RED}❌ No URL entered. Exiting.${RESET}" && exit 1
 if ! [[ "$URL" =~ ^https?://(www\.)?(youtube\.com|youtu\.be)/ ]]; then
-  echo -e "${RED}Invalid YouTube URL. Exiting.${RESET}"
-  exit 1
+    echo -e "${RED}❌ Invalid YouTube URL. Exiting.${RESET}"
+    exit 1
 fi
 
-# === Playlist or single video ===
+# === Step 2: Playlist or Video ===
 IS_PLAYLIST=$(yt-dlp --flat-playlist --no-warnings -J "$URL" 2>/dev/null | jq -r 'has("entries")')
 
 if [[ "$IS_PLAYLIST" == "true" ]]; then
-  echo -e "${CYAN}Fetching playlist... Use ↑↓ to move, <tab> to select, <enter> to confirm.${RESET}"
-  METADATA=$(yt-dlp --flat-playlist -J "$URL" 2>/dev/null)
-  ENTRIES=$(echo "$METADATA" | jq -r '.entries[] | "\(.title) | \(.id)"' | fzf --multi --header="Select videos to download")
-  [[ -z "$ENTRIES" ]] && echo -e "${RED}No videos selected. Exiting.${RESET}" && exit 1
+    echo -e "${CYAN}📃 Playlist detected. Use ↑↓ to move, <tab> to select, <enter> to confirm.${RESET}"
+    METADATA=$(yt-dlp --flat-playlist -J "$URL" 2>/dev/null)
+    ENTRIES=$(echo "$METADATA" | jq -r '.entries[] | "\(.title) | \(.id)"' | fzf --multi --header="🎯 Select videos to download")
+    [[ -z "$ENTRIES" ]] && echo -e "${RED}❌ No videos selected. Exiting.${RESET}" && exit 1
 else
-  echo -e "${CYAN}Single video detected.${RESET}"
-  VIDEO_ID=$(yt-dlp --get-id "$URL")
-  VIDEO_TITLE=$(yt-dlp --get-title "$URL")
-  ENTRIES="$VIDEO_TITLE | $VIDEO_ID"
+    echo -e "${CYAN}🎬 Single video detected.${RESET}"
+    VIDEO_ID=$(yt-dlp --get-id "$URL")
+    VIDEO_TITLE=$(yt-dlp --get-title "$URL")
+    ENTRIES="$VIDEO_TITLE | $VIDEO_ID"
 fi
 
-# === Download type ===
-if [[ -z "$TYPE" ]]; then
-  echo -e "${YELLOW}Choose download type:${RESET}"
-  select TYPE in "Audio only" "Audio + Video"; do
+# === Step 3: Audio or Video ===
+echo -e "${YELLOW}${BOLD}🎚️ Choose download type:${RESET}"
+echo -e "1. 🎵 Audio only (e.g., MP3, M4A)\n2. 🎞️ Audio + Video (full video)"
+select TYPE in "Audio only" "Audio + Video"; do
     [[ -n "$TYPE" ]] && break
-  done
-fi
+done
 
-# === Format or quality ===
+# === Step 4: Format/Quality ===
 if [[ "$TYPE" == "Audio only" ]]; then
-  if [[ -z "$FORMAT" ]]; then
-    echo -e "${YELLOW}Enter audio format (default: mp3):${RESET}"
-
+    echo -e "${YELLOW}🎧 Enter desired audio format.${RESET}"
+    echo -e "Supported formats: ${CYAN}mp3${RESET}, ${CYAN}m4a${RESET}, ${CYAN}flac${RESET}, ${CYAN}wav${RESET}, ${CYAN}opus${RESET}"
+    echo -en "Leave blank for default (mp3):\n> "
     read -r FORMAT
     FORMAT=${FORMAT:-mp3}
-  fi
 else
-  if [[ -n "$QUALITY" ]]; then
-    case $QUALITY in
-      best) FMT="bestvideo+bestaudio/best" ;;
-      medium) FMT="bv[height<=480]+ba/best[height<=480]" ;;
-      worst) FMT="worstvideo+worstaudio/worst" ;;
-      *) echo -e "${RED}Invalid quality: $QUALITY${RESET}"; exit 1 ;;
-    esac
-  else
-    echo -e "${YELLOW}Choose video quality:${RESET}"
+    echo -e "${YELLOW}${BOLD}🎞️ Choose video quality preset:${RESET}"
+    echo -e "1. 📈 Best (highest available)\n2. 📉 Medium (up to 480p)\n3. 🪶 Worst (lowest quality)"
     select QUALITY in "Best" "Medium (480p)" "Worst"; do
-      case $QUALITY in
-        "Best") FMT="bestvideo+bestaudio/best"; break ;;
-        "Medium (480p)") FMT="bv[height<=480]+ba/best[height<=480]"; break ;;
-        "Worst") FMT="worstvideo+worstaudio/worst"; break ;;
-        *) echo -e "${RED}Invalid option. Try again.${RESET}" ;;
-      esac
+        case $QUALITY in
+            "Best") FMT="bestvideo+bestaudio/best"; break ;;
+            "Medium (480p)") FMT="bv[height<=480]+ba/best[height<=480]"; break ;;
+            "Worst") FMT="worstvideo+worstaudio/worst"; break ;;
+            *) echo -e "${RED}❌ Invalid option. Try again.${RESET}" ;;
+        esac
     done
-  fi
 fi
 
-# === Save directory ===
-if [[ -z "$SAVE_DIR" ]]; then
-  echo -e "${YELLOW}Enter save directory (default: $HOME):${RESET}"
-  read -r SAVE_DIR
-  SAVE_DIR=${SAVE_DIR:-$HOME}
-fi
-
-mkdir -p "$SAVE_DIR" || { echo -e "${RED}Cannot create directory. Exiting.${RESET}"; exit 1; }
+# === Step 5: Save Directory ===
+echo -e "${YELLOW}📁 Enter directory where downloads will be saved.${RESET}"
+echo -en "Leave blank for default: $HOME\n> "
+read -r SAVE_DIR
+SAVE_DIR=${SAVE_DIR:-$HOME}
+[[ -z "$SAVE_DIR" ]] && echo -e "${RED}❌ No directory provided. Exiting.${RESET}" && exit 1
+mkdir -p "$SAVE_DIR" || { echo -e "${RED}❌ Cannot create directory.${RESET}"; exit 1; }
 ARCHIVE_FILE="$SAVE_DIR/.yt-dlp-archive.txt"
 
-# === Build commands ===
+# === Step 6: Build Download Commands ===
 TOTAL=$(echo "$ENTRIES" | wc -l)
 i=1
 
 while IFS='|' read -r TITLE ID; do
-  TITLE=$(echo "$TITLE" | xargs)
-  ID=$(echo "$ID" | xargs)
-  SAFE_TITLE=$(printf "%q" "$TITLE")
-  VIDEO_URL="https://www.youtube.com/watch?v=$ID"
+    TITLE=$(echo "$TITLE" | xargs)
+    ID=$(echo "$ID" | xargs)
+    SAFE_TITLE=$(printf "%q" "$TITLE")
+    VIDEO_URL="https://www.youtube.com/watch?v=$ID"
 
-  if [[ "$TYPE" == "Audio only" ]]; then
-    echo "echo '[$i/$TOTAL] Downloading: $SAFE_TITLE'; yt-dlp \
-    --download-archive '$ARCHIVE_FILE' \
-    --no-overwrites --restrict-filenames --continue --no-part \
-    --write-thumbnail --embed-thumbnail \
-    --write-sub --write-auto-sub --sub-lang en --sub-format srt \
-    --retries infinite --fragment-retries infinite --abort-on-error \
-    -f bestaudio --extract-audio --audio-format $FORMAT \
-    -o '$SAVE_DIR/%(title)s.%(ext)s' '$VIDEO_URL' \
-    && rm -f '$SAVE_DIR/'*.webp '$SAVE_DIR/'*.srt" \
-    >> "$COMMANDS_FILE"
-  else
-    echo "echo '[$i/$TOTAL] Downloading: $SAFE_TITLE'; yt-dlp \
-    --download-archive '$ARCHIVE_FILE' \
-    --no-overwrites --restrict-filenames --continue --no-part \
-    --write-thumbnail --embed-thumbnail \
-    --write-sub --write-auto-sub --sub-lang en --sub-format srt --embed-subs \
-    --retries infinite --fragment-retries infinite --abort-on-error \
-    -f '$FMT' -o '$SAVE_DIR/%(title)s.%(ext)s' '$VIDEO_URL' \
-    && rm -f '$SAVE_DIR/'*.webp '$SAVE_DIR/'*.srt" \
-    >> "$COMMANDS_FILE"
-  fi
-  ((i++))
+    if [[ "$TYPE" == "Audio only" ]]; then
+        echo "echo '[\$i/\$TOTAL] Downloading: \$SAFE_TITLE'; yt-dlp \
+        --download-archive '\$ARCHIVE_FILE' \
+        --no-overwrites --restrict-filenames --continue --no-part \
+        --write-thumbnail --embed-thumbnail \
+        --write-sub --write-auto-sub --sub-lang en --sub-format srt \
+        --retries infinite --fragment-retries infinite --abort-on-error \
+        -f bestaudio --extract-audio --audio-format \$FORMAT \
+        -o '\$SAVE_DIR/%(title)s.%(ext)s' '\$VIDEO_URL' \
+        && rm -f '\$SAVE_DIR/'*.webp '\$SAVE_DIR/'*.srt" \
+        >> "$COMMANDS_FILE"
+    else
+        echo "echo '[\$i/\$TOTAL] Downloading: \$SAFE_TITLE'; yt-dlp \
+        --download-archive '\$ARCHIVE_FILE' \
+        --no-overwrites --restrict-filenames --continue --no-part \
+        --write-thumbnail --embed-thumbnail \
+        --write-sub --write-auto-sub --sub-lang en --sub-format srt --embed-subs \
+        --retries infinite --fragment-retries infinite --abort-on-error \
+        -f '\$FMT' -o '\$SAVE_DIR/%(title)s.%(ext)s' '\$VIDEO_URL' \
+        && rm -f '\$SAVE_DIR/'*.webp '\$SAVE_DIR/'*.srt" \
+        >> "$COMMANDS_FILE"
+    fi
+    ((i++))
 done <<< "$ENTRIES"
 
-# === Run ===
-echo -e "${CYAN}⏬ Starting downloads...${RESET}"
+# === Step 7: Run Downloads in Parallel ===
+echo -e "${CYAN}🚀 Starting parallel downloads...${RESET}"
 parallel --joblog "$LOG_FILE" --eta < "$COMMANDS_FILE"
 
-# === Notify ===
+# === Step 8: Notify on Completion ===
 if command -v notify-send &>/dev/null; then
-  notify-send "YouTube Downloader" "All downloads completed!" --icon=video
+    notify-send "YouTube Downloader" "All downloads completed!" --icon=video
 fi
 
 rm -f "$COMMANDS_FILE"
-echo -e "${GREEN}${BOLD}✔️ All downloads completed successfully!${RESET}"
-echo -e "${CYAN}📝 Error log (if any): ${LOG_FILE}${RESET}"
+echo -e "${GREEN}${BOLD}✅ All downloads completed successfully!${RESET}"
+echo -e "${CYAN}📄 Error log (if any): ${LOG_FILE}${RESET}"
